@@ -11,6 +11,8 @@ import { demoEntries } from "./demoData";
 
 const ENTRIES_KEY = "cantilever.entries.v1";
 const SETTINGS_KEY = "cantilever.settings.v1";
+const SEED_VERSION_KEY = "cantilever.seedVersion.v1";
+const CURRENT_SEED_VERSION = "excel-tracker-2026-06";
 
 const defaultSettings: SettingsData = {
   associates: DEFAULT_ASSOCIATES,
@@ -41,7 +43,16 @@ const writeJson = (key: string, value: unknown) => {
 // Power Automate, Teams webhooks, or Azure APIs while keeping the app screens.
 export const storageService = {
   init() {
-    if (!localStorage.getItem(ENTRIES_KEY)) writeJson(ENTRIES_KEY, demoEntries);
+    const currentEntries = readJson<CantileverEntry[]>(ENTRIES_KEY, []);
+    if (!currentEntries.length) {
+      writeJson(ENTRIES_KEY, demoEntries);
+      localStorage.setItem(SEED_VERSION_KEY, CURRENT_SEED_VERSION);
+    } else if (localStorage.getItem(SEED_VERSION_KEY) !== CURRENT_SEED_VERSION) {
+      const existingIds = new Set(currentEntries.map((entry) => entry.id));
+      const missingSeedEntries = demoEntries.filter((entry) => !existingIds.has(entry.id));
+      writeJson(ENTRIES_KEY, [...missingSeedEntries, ...currentEntries]);
+      localStorage.setItem(SEED_VERSION_KEY, CURRENT_SEED_VERSION);
+    }
     if (!localStorage.getItem(SETTINGS_KEY)) writeJson(SETTINGS_KEY, defaultSettings);
   },
   getEntries(): CantileverEntry[] {
@@ -74,9 +85,11 @@ export const storageService = {
     writeJson(SETTINGS_KEY, settings);
   },
   clearDemoData() {
-    this.saveEntries(this.getEntries().filter((entry) => !entry.id.startsWith("demo-")));
+    this.saveEntries(this.getEntries().filter((entry) => !entry.id.startsWith("demo-") && !entry.id.startsWith("excel-")));
+    localStorage.removeItem(SEED_VERSION_KEY);
   },
   resetDemoData() {
     this.saveEntries(demoEntries);
+    localStorage.setItem(SEED_VERSION_KEY, CURRENT_SEED_VERSION);
   },
 };
